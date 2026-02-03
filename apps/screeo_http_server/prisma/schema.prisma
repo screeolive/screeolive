@@ -1,0 +1,59 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String   @id @default(cuid())
+  username         String
+  email            String   @unique
+  contactNumber    String   @default("NOT_PROVIDED")
+  password         String
+  isMailVerified   Boolean  @default(false)
+  verification_otp String?  @default("")
+  passwd_reset_otp String?  @default("")
+  provider         String   @default("email") // 'email', 'phone', 'google', 'github'
+  providerId       String?
+  UserAddedAt      DateTime @default(now())
+  UserUpdatedAt    DateTime @updatedAt
+
+  participants Participant[] // A user can be a participant in many rooms
+  hostedRooms  Room[]        @relation("HostToRooms") // A user can be the host of many rooms
+}
+
+model Room {
+  id   String  @id @default(cuid())
+  name String? // Optional name for the room, can be set later
+
+  // The user who created the room
+  hostId String
+  host   User   @relation("HostToRooms", fields: [hostId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  participants Participant[] // A room can have many participants
+}
+
+model Participant {
+  id String @id @default(cuid())
+
+  // Link to the User
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Link to the Room
+  roomId String
+  room   Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  // Session-specific data
+  joinedAt DateTime  @default(now())
+  leftAt   DateTime? // To track when they leave
+
+  // ensures a user can only be in a specific room once at any given time
+  @@unique([userId, roomId])
+}
