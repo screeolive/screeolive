@@ -11,7 +11,6 @@ import { MicOff } from '../icons/MicOff';
 import { ScreenShare } from '../icons/ScreenShare';
 
 
-// --- Types and Interfaces ---
 interface Participant {
     id: string;
     username: string;
@@ -19,9 +18,6 @@ interface Participant {
     isMuted?: boolean;
 }
 
-// --- Icons (Same as before) ---
-
-// --- Main Room Component ---
 export const RoomComponent = ({ params }: { params: { id: string } }) => {
     const roomId = params.id;
     const router = useRouter();
@@ -36,7 +32,6 @@ export const RoomComponent = ({ params }: { params: { id: string } }) => {
     const peersRef = useRef<Record<string, RTCPeerConnection>>({});
     const localStreamRef = useRef<MediaStream | null>(null);
 
-    // Fetch user session to get ID and username
     useEffect(() => {
         axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/v1/auth/session`, { withCredentials: true })
             .then(res => {
@@ -66,7 +61,6 @@ export const RoomComponent = ({ params }: { params: { id: string } }) => {
             iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
         });
 
-        // **FIX**: Add onnegotiationneeded to automatically handle screen sharing
         peer.onnegotiationneeded = async () => {
             console.log("Negotiation needed for peer:", peerId);
             try {
@@ -253,7 +247,6 @@ export const RoomComponent = ({ params }: { params: { id: string } }) => {
     );
 };
 
-// --- Child Components ---
 const VideoPlayer = ({ participant, isLocal }: { participant: Participant, isLocal: boolean }) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     useEffect(() => {

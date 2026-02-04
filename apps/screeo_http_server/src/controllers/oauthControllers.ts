@@ -5,18 +5,14 @@ import { FRONTEND_URL, JWT_USER_SECRET } from '../config/config';
 
 export const OauthRouter = Router();
 
-// Helper function for success redirect
-
 const handleAuthSuccess = (req: Request, res: Response) => {
     if (!req.user) {
-        // This case should ideally be caught by failureRedirect, but as a fallback
         res.redirect(`${FRONTEND_URL}/auth/failure?message=Authentication failed`);
         return;
     }
 
     const user = req.user as any;
 
-    // Generate JWT token
     const token = jwt.sign(
         {
             id: user.id,
@@ -26,12 +22,11 @@ const handleAuthSuccess = (req: Request, res: Response) => {
         { expiresIn: "4d" }
     );
 
-    // Set cookie with the token
     res.cookie("token", token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV !== "development", // Use secure cookies in production
+        secure: process.env.NODE_ENV !== "development",
         sameSite: process.env.NODE_ENV === "development" ? "lax" : "none",
-        maxAge: 4 * 24 * 60 * 60 * 1000, // 4 Days
+        maxAge: 4 * 24 * 60 * 60 * 1000,
         path: "/",
     });
 
@@ -40,7 +35,6 @@ const handleAuthSuccess = (req: Request, res: Response) => {
 };
 
 
-// --- Google Auth Routes ---
 OauthRouter.get('/google', passport.authenticate('google', {
     scope: ['profile', 'email'],
     session: false
@@ -52,17 +46,13 @@ OauthRouter.get(
         failureRedirect: '/auth/failure',
         session: false
     }),
-    handleAuthSuccess // Use the helper function
+    handleAuthSuccess
 );
 
-// Logout
 OauthRouter.get('/logout', (req: Request, res: Response) => {
-    // req.logout is session-based, for JWT we just clear the cookie
     res.clearCookie('token', { path: '/' });
     res.redirect('/');
 });
-
-// Auth Failure
 OauthRouter.get('/failure', (req: Request, res: Response) => {
     const message = req.query.message || 'Failed to authenticate.';
     res.status(401).send(message);

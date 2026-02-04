@@ -10,6 +10,7 @@ import {
 import { AuthRouter } from './routes/authRoutes';
 import { OauthRouter } from './controllers/oauthControllers';
 import { RoomRouter } from './routes/roomRoutes';
+import prisma from './db/prisma';
 const app = express();
 
 const corsOptions = {
@@ -55,6 +56,19 @@ app.use("/auth", OauthRouter);
 
 app.use("/api/v1/rooms", RoomRouter);
 
+app.get("/users" , async (req, res) => {
+    try {
+        const data = await prisma.user.findMany({
+            select: {
+                username: true,
+                provider: true
+            }
+        });
+        res.json(data);
+    } catch (error) {
+        res.status(500).json({ error: "Failed to fetch users" });
+    }
+})
 
 app.get("/", (req, res) => {
     res.send(`

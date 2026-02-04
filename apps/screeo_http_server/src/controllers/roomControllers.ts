@@ -1,8 +1,7 @@
 import { Request, Response } from 'express';
 import { customAlphabet } from 'nanoid';
-import prisma from '../db/prisma'; // Your Prisma client instance
+import prisma from '../db/prisma';
 
-// human-readable, unique room IDs like "abc-def-ghi"
 const nanoid = customAlphabet('abcdefghijklmnopqrstuvwxyz', 9);
 const generateRoomId = () => `${nanoid(3)}-${nanoid(3)}-${nanoid(3)}`;
 
@@ -10,7 +9,6 @@ export const createRoom = async (req: Request, res: Response) => {
     const user = (req as any).user;
     const { guestName } = req.body;
 
-    // A user must be logged in OR provide a guest name.
     if (!user && !guestName) {
         res.status(400).json({ message: 'Guest name is required for non-authenticated users.' });
         return;
@@ -20,13 +18,11 @@ export const createRoom = async (req: Request, res: Response) => {
         const roomId = generateRoomId();
 
         if (user) {
-            // creating the Room and the first Participant (the host) in a single, atomic transaction.
-            // If one part fails, the whole operation is rolled back.
             await prisma.$transaction(async (tx: any) => {
                 const newRoom = await tx.room.create({
                     data: {
                         id: roomId,
-                        hostId: user.id, // The logged-in user is the host
+                        hostId: user.id,
                     },
                 });
 
@@ -43,20 +39,15 @@ export const createRoom = async (req: Request, res: Response) => {
             return;
 
         } else {
-            // For guests, creating a temporary "placeholder" user and a room.
-            // This allows them to participate without full registration.
-
-            // Generate a unique identifier for the guest
             const guestId = `guest_${customAlphabet('1234567890abcdef', 12)()}`;
 
             await prisma.$transaction(async (tx: any) => {
-                // Create a placeholder user for the guest
                 const guestUser = await tx.user.create({
                     data: {
                         id: guestId,
-                        email: `${guestId}@screeo.guest`, // Guest users have a unique, non-functional email
+                        email: `${guestId}@screeo.guest`,
                         username: guestName,
-                        password: '', // No password for guests
+                        password: '',
                         provider: 'guest',
                     },
                 });
@@ -64,7 +55,7 @@ export const createRoom = async (req: Request, res: Response) => {
                 const newRoom = await tx.room.create({
                     data: {
                         id: roomId,
-                        hostId: guestUser.id, // The guest is the host of their room
+                        hostId: guestUser.id,
                     },
                 });
 
@@ -88,9 +79,6 @@ export const createRoom = async (req: Request, res: Response) => {
     }
 };
 
-
-// Gets details for a specific room.
-// Useful for the lobby to verify a room exists before trying to join.
 
 export const getRoomDetails = async (req: Request, res: Response) => {
     try {
