@@ -66,6 +66,14 @@ io.on('connection', (socket: Socket) => {
         }
     });
 
+    socket.on('send-message', (roomId: string, message: string) => {
+        const fromUserId = socketIdToUserIdMap.get(socket.id);
+        const username = fromUserId ? userIdToUsernameMap.get(fromUserId) : 'Anonymous';
+        if (fromUserId) {
+            socket.to(roomId).emit('receive-message', { senderId: fromUserId, username, message, timestamp: new Date().toISOString() });
+        }
+    });
+
     const handleDisconnect = () => {
         const disconnectedUserId = socketIdToUserIdMap.get(socket.id);
         if (disconnectedUserId) {

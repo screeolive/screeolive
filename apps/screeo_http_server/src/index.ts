@@ -4,6 +4,7 @@ import session from 'express-session';
 import cookieParser from "cookie-parser";
 import express from "express";
 import cors from "cors";
+import { CorsOptions } from 'cors';
 import {
     PORT
 } from "./config/config";
@@ -13,21 +14,37 @@ import { RoomRouter } from './routes/roomRoutes';
 import prisma from './db/prisma';
 const app = express();
 
-const corsOptions = {
-    origin: [
-        'http://localhost:3000',
-        'https://screeolive-signaling-underdev.onrender.com',
-        'https://screeolive.vercel.app'
-    ],
-    credentials: true,
-    optionsSuccessStatus: 200
-};
 
 app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({
     extended: true
 }));
+
+const allowedOrigins = [
+  'http://localhost:3000',
+  'https://screeolive.vercel.app',
+  'https://screeolive-signaling-underdev.onrender.com'
+];
+
+const corsOptions: CorsOptions = {
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    // allow ALL vercel preview deployments
+    if (origin.endsWith('.vercel.app')) {
+      return callback(null, true);
+    }
+
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  optionsSuccessStatus: 200
+};
 
 app.use(cors(corsOptions));
 
