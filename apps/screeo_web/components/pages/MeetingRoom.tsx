@@ -1,4 +1,4 @@
-"use client"; // This is a client component
+"use client";
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
@@ -115,10 +115,23 @@ export const RoomComponent = ({ params }: { params: { id: string } }) => {
     useEffect(() => {
         if (!userId || !username) return;
 
+        // Initialize with empty stream
+        if (!localStreamRef.current) {
+            localStreamRef.current = new MediaStream();
+        }
+
         const socket = io(process.env.NEXT_PUBLIC_SIGNALING_SERVER_URL || 'http://localhost:3001');
         socketRef.current = socket;
 
-        setParticipants(prev => ({ ...prev, [userId]: { id: userId, username, stream: localStreamRef.current, isMuted: !isMicOn } }));
+        setParticipants(prev => ({
+            ...prev,
+            [userId]: {
+                id: userId,
+                username,
+                stream: localStreamRef.current,
+                isMuted: !isMicOn
+            }
+        }));
 
         socket.emit('join-room', roomId, userId, username);
 
@@ -225,42 +238,89 @@ export const RoomComponent = ({ params }: { params: { id: string } }) => {
         const isCurrentlyOn = type === 'mic' ? isMicOn : isSharingScreen;
         const setOn = type === 'mic' ? setIsMicOn : setIsSharingScreen;
 
-        const currentStream = localStreamRef.current ?? new MediaStream();
-        const trackKind = type === 'mic' ? 'audio' : 'video';
-        const existingTrack = currentStream.getTracks().find(t => t.kind === trackKind);
-
-        if (existingTrack) {
-            existingTrack.stop();
-            currentStream.removeTrack(existingTrack);
-            Object.values(peersRef.current).forEach(peer => {
-                const sender = peer.getSenders().find(s => s.track === existingTrack);
-                if (sender) peer.removeTrack(sender);
-            });
-        }
-
         if (!isCurrentlyOn) {
+            // Turning ON
             try {
                 const newMediaStream = type === 'mic'
                     ? await navigator.mediaDevices.getUserMedia({ audio: true })
-                    : await navigator.mediaDevices.getDisplayMedia({ video: true, audio: { echoCancellation: true, noiseSuppression: true } });
+                    : await navigator.mediaDevices.getDisplayMedia({
+                        video: {
+                            displaySurface: "monitor" // This helps with full screen capture
+                        },
+                        audio: {
+                            echoCancellation: true,
+                            noiseSuppression: true
+                        }
+                    });
 
                 const newTrack = newMediaStream.getTracks()[0];
-                currentStream.addTrack(newTrack);
+
+                // Add track to local stream
+                if (!localStreamRef.current) {
+                    localStreamRef.current = new MediaStream();
+                }
+                localStreamRef.current.addTrack(newTrack);
+
+                // Replace or add track in all peer connections
                 Object.values(peersRef.current).forEach(peer => {
-                    peer.addTrack(newTrack, currentStream);
+                    const sender = peer.getSenders().find(s => s.track?.kind === newTrack.kind);
+                    if (sender) {
+                        sender.replaceTrack(newTrack);
+                    } else {
+                        peer.addTrack(newTrack, localStreamRef.current!);
+                    }
                 });
 
-                if (type === 'screen') newTrack.onended = () => toggleMedia('screen');
+                if (type === 'screen') {
+                    newTrack.onended = () => toggleMedia('screen');
+                }
 
                 setOn(true);
-            } catch (e) { console.error(`Error starting ${type}:`, e); return; }
-        } else {
-            setOn(false);
-        }
 
-        localStreamRef.current = currentStream;
-        setParticipants(prev => ({ ...prev, [userId!]: { ...prev[userId!], stream: currentStream, isMuted: type === 'mic' ? !isCurrentlyOn : prev[userId!]?.isMuted } }));
-    }, [isMicOn, isSharingScreen, userId, username]);
+                // Update local participant
+                setParticipants(prev => ({
+                    ...prev,
+                    [userId!]: {
+                        ...prev[userId!],
+                        stream: localStreamRef.current,
+                        isMuted: type === 'mic' ? false : prev[userId!]?.isMuted
+                    }
+                }));
+            } catch (e) {
+                console.error(`Error starting ${type}:`, e);
+                return;
+            }
+        } else {
+            // Turning OFF
+            const trackKind = type === 'mic' ? 'audio' : 'video';
+            const tracksToRemove = localStreamRef.current?.getTracks().filter(t => t.kind === trackKind) || [];
+
+            tracksToRemove.forEach(track => {
+                track.stop();
+                localStreamRef.current?.removeTrack(track);
+
+                // Remove track from all peer connections
+                Object.values(peersRef.current).forEach(peer => {
+                    const sender = peer.getSenders().find(s => s.track === track);
+                    if (sender) {
+                        peer.removeTrack(sender);
+                    }
+                });
+            });
+
+            setOn(false);
+
+            // Update local participant
+            setParticipants(prev => ({
+                ...prev,
+                [userId!]: {
+                    ...prev[userId!],
+                    stream: localStreamRef.current,
+                    isMuted: type === 'mic' ? true : prev[userId!]?.isMuted
+                }
+            }));
+        }
+    }, [isMicOn, isSharingScreen, userId]);
 
     const handleLeaveRoom = () => router.push('/');
 
@@ -296,7 +356,7 @@ export const RoomComponent = ({ params }: { params: { id: string } }) => {
                 onSendMessage={handleSendMessage}
                 currentUserId={userId || ''}
             />
-            <footer className="flex-shrink-0 bg-gray-800/50 backdrop-blur-sm p-4 flex justify-center items-center gap-4 border-t border-gray-700">
+            <footer className="shrink-0 bg-gray-800/50 backdrop-blur-sm p-4 flex justify-center items-center gap-4 border-t border-gray-700">
                 <ControlButton onClick={() => toggleMedia('mic')} isOn={isMicOn}>
                     {isMicOn ? <MicOn className='cursor-pointer size-6' /> : <MicOff className='cursor-pointer size-6' />}
                 </ControlButton>
